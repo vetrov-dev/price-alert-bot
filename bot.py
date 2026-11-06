@@ -3,6 +3,7 @@
     python bot.py
 """
 import asyncio
+import html
 import logging
 import os
 from pathlib import Path
@@ -31,7 +32,7 @@ prices: Prices | None = None
 
 HELP = (
     "<b>Цены</b>\n/price sol ton btc — текущая цена и изменение за 24 ч\n\n"
-    "<b>Алерты</b>\n/alert sol > 200 — цена поднимется до $200\n/alert ton < 2.5 — опустится до $2.5\n"
+    "<b>Алерты</b>\n/alert sol > 200 — цена поднимется до $200\n/alert ton &lt; 2.5 — опустится до $2.5\n"
     "/alert btc +5% — вырастет на 5% от текущей\n/alert eth -10% — упадёт на 10%\n\n"
     "/alerts — мои алерты и удаление\n\n"
     "Монеты: тикеры BTC, ETH, SOL, TON, BNB, XRP и другие, или любой id с CoinGecko. Цены: CoinGecko."
@@ -50,13 +51,13 @@ async def price(m: Message, command: CommandObject) -> None:
     try:
         data = await prices.get(ids)
     except (PriceError, aiohttp.ClientError, asyncio.TimeoutError) as e:
-        await m.answer(f"Не удалось получить цены: {e}")
+        await m.answer(f"Не удалось получить цены: {html.escape(str(e))}")
         return
     lines = []
     for cid in ids:
         d = data.get(cid)
         if not d:
-            lines.append(f"{cid}: не нашёл такую монету")
+            lines.append(f"{html.escape(cid)}: не нашёл такую монету")
             continue
         ch = d.get("usd_24h_change") or 0
         lines.append(f"<b>{ticker(cid)}</b> ${fmt_price(d['usd'])}  {'🟢' if ch >= 0 else '🔴'} {ch:+.2f}% за 24 ч")
@@ -68,7 +69,7 @@ async def add_alert(m: Message, command: CommandObject) -> None:
     try:
         rule = parse_rule(command.args or "")
     except ParseError as e:
-        await m.answer(f"{e}\n\nПримеры: /alert sol > 200, /alert btc +5%")
+        await m.answer(f"{html.escape(str(e))}\n\nПримеры: /alert sol &gt; 200, /alert btc +5%")
         return
     if len(await db.active(m.from_user.id)) >= MAX_ALERTS:
         await m.answer(f"У вас уже {MAX_ALERTS} алертов. Удалите ненужные в /alerts.")
@@ -76,10 +77,10 @@ async def add_alert(m: Message, command: CommandObject) -> None:
     try:
         d = (await prices.get([rule.coin])).get(rule.coin)
     except (PriceError, aiohttp.ClientError, asyncio.TimeoutError) as e:
-        await m.answer(f"Не удалось проверить цену: {e}")
+        await m.answer(f"Не удалось проверить цену: {html.escape(str(e))}")
         return
     if not d:
-        await m.answer(f"Не нашёл монету «{rule.coin}». Используйте тикер (sol, ton) или id с coingecko.com.")
+        await m.answer(f"Не нашёл монету «{html.escape(rule.coin)}». Используйте тикер (sol, ton) или id с coingecko.com.")
         return
     now = d["usd"]
     if fired(rule.kind, rule.value, now, now):
